@@ -360,17 +360,48 @@ const INVENTORY = [
     return false;
   }
 
+  // ---- ONE-TIME INTRO AUDIO -------------------------------------------
+  // The intro MP3 plays once per visit (browser session). After that, clicks
+  // never replay it. A new visit (closing the browser/tab and opening the
+  // link again) resets it. It also never plays once a Henrietta call has started.
+  const PLAYED_KEY = "msf_intro_played";
+  let introPlayed = false;
+  let callActive  = false;
+  try { introPlayed = sessionStorage.getItem(PLAYED_KEY) === "1"; } catch(e){}
+  function markPlayed(){
+    introPlayed = true;
+    try { sessionStorage.setItem(PLAYED_KEY, "1"); } catch(e){}
+  }
+  function stopIntro(){
+    try { audio.pause(); audio.currentTime = 0; } catch(e){}
+  }
+  // ElevenLabs widget fires this when the visitor starts a call.
+  function onCallStart(){
+    callActive = true;
+    markPlayed();
+    stopIntro();
+    coach.classList.remove("show");
+    ring.classList.remove("show");
+  }
+  document.addEventListener("elevenlabs-convai:call", onCallStart);
+  window.addEventListener("DOMContentLoaded", function(){
+    const w = document.querySelector("elevenlabs-convai");
+    if (w) w.addEventListener("elevenlabs-convai:call", onCallStart);
+  });
+
   let firing = false;
   function callToAction(){
-    if (firing) return;
+    if (firing || callActive) return;
     firing = true;
     setTimeout(function(){ firing = false; }, 1200);
 
-    try {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.play().catch(function(){});
-    } catch(e){}
+    if (!introPlayed) {
+      markPlayed();
+      try {
+        audio.currentTime = 0;
+        audio.play().catch(function(){});
+      } catch(e){}
+    }
 
     coach.classList.add("show");
     ring.classList.remove("show"); void ring.offsetWidth; ring.classList.add("show");
